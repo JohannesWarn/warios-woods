@@ -148,7 +148,7 @@ pub export fn game_init() void {
     tiles[playerI] = player_tile;
 }
 
-fn fall() bool {
+fn startFall() bool {
     const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
 
     if (player.gy == 0 or tiles[playerI - w].tileType != .empty) {
@@ -176,7 +176,7 @@ fn escape() bool {
     return true;
 }
 
-fn walk() bool {
+fn startWalk() bool {
     const gx: u32 = player.gx;
     const gy: u32 = player.gy;
 
@@ -320,10 +320,45 @@ fn placeSingle() bool {
 fn movePlayer() void {
     if (playerCooldown != 0) {
         playerCooldown -= 1;
+    }
+
+    const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
+
+    if (player.py != 0) {
+        player.py -= 2;
+        if (player.py == 0) {
+            if (tiles[playerI + w].tileType == .player) {
+                tiles[playerI + w] = empty_tile;
+            }
+        }
         return;
     }
 
-    if (fall()) {
+    if (player.px != 0) {
+        if (player.flipped) {
+            player.px -= 1;
+            if (player.px == 0) {
+                if (tiles[playerI + 1].tileType == .player) {
+                    tiles[playerI + 1] = empty_tile;
+                }
+            }
+        } else {
+            player.px += 1;
+            if (player.px == 0) {
+                player.gx += 1;
+                if (tiles[playerI].tileType == .player) {
+                    tiles[playerI] = empty_tile;
+                }
+            }
+        }
+        return;
+    }
+
+    if (playerCooldown != 0) {
+        return;
+    }
+
+    if (startFall()) {
         return;
     }
 
@@ -331,7 +366,8 @@ fn movePlayer() void {
         return;
     }
 
-    if (walk()) {
+    if (startWalk()) {
+        playerCooldown = 6;
         return;
     }
 
@@ -349,41 +385,10 @@ fn movePlayer() void {
 pub export fn tick() void {
     tickCount += 1;
 
-    var i: u16 = 0;
-
-    const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
-    if (player.px == 0 and player.py == 0) {
-        movePlayer();
-    } else {
-        if (player.py != 0) {
-            player.py -= 2;
-            if (player.py == 0) {
-                if (tiles[playerI + w].tileType == .player) {
-                    tiles[playerI + w] = empty_tile;
-                }
-            }
-        } else {
-            if (player.flipped) {
-                player.px -= 1;
-                if (player.px == 0) {
-                    if (tiles[playerI + 1].tileType == .player) {
-                        tiles[playerI + 1] = empty_tile;
-                    }
-                }
-            } else {
-                player.px += 1;
-                if (player.px == 0) {
-                    player.gx += 1;
-                    if (tiles[playerI].tileType == .player) {
-                        tiles[playerI] = empty_tile;
-                    }
-                }
-            }
-        }
-    }
+    movePlayer();
 
     // tick all counts down
-    i = 0;
+    var i: u16 = 0;
     while (i < w * h) {
         defer {
             i += 1;
