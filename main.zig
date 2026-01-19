@@ -150,29 +150,29 @@ pub export fn game_init() void {
 fn fall() bool {
     const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
 
-    if (player.gy != 0 and tiles[playerI - w].tileType == .empty) {
-        player.py -= 2;
-        player.gy -= 1;
-        tiles[playerI - w] = player_tile;
-
-        return true;
+    if (player.gy == 0 or tiles[playerI - w].tileType != .empty) {
+        return false;
     }
 
-    return false;
+    player.py -= 2;
+    player.gy -= 1;
+    tiles[playerI - w] = player_tile;
+
+    return true;
 }
 
 fn escape() bool {
     const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
 
-    if (playerInput.up and tiles[playerI + w].tileType.isSolid()) {
-        tiles[playerI] = tiles[playerI + w];
-        tiles[playerI + w] = player_tile;
-        player.gy += 1;
-
-        return true;
+    if (!playerInput.up or !tiles[playerI + w].tileType.isSolid()) {
+        return false;
     }
 
-    return false;
+    tiles[playerI] = tiles[playerI + w];
+    tiles[playerI + w] = player_tile;
+    player.gy += 1;
+
+    return true;
 }
 
 fn walk() bool {
