@@ -20,7 +20,6 @@ const PlayerInput = packed struct(u8) {
 
     _pad: u2 = 0,
 };
-var playerInput = PlayerInput{};
 
 // ---
 
@@ -76,6 +75,8 @@ const Sprite = packed struct(u32) {
 
 // State
 
+var playerInput = PlayerInput{};
+var playerCooldown: u8 = 0;
 var tiles: [w * h]Tile = [_]Tile{empty_tile} ** (w * h);
 var sprites: [30]Sprite = undefined;
 var spritesCount: u8 = 0;
@@ -317,6 +318,11 @@ fn placeSingle() bool {
 }
 
 fn movePlayer() void {
+    if (playerCooldown != 0) {
+        playerCooldown -= 1;
+        return;
+    }
+
     if (fall()) {
         return;
     }
@@ -330,10 +336,12 @@ fn movePlayer() void {
     }
 
     if (pickUp()) {
+        playerCooldown = 10;
         return;
     }
 
     if (placeSingle()) {
+        playerCooldown = 10;
         return;
     }
 }
