@@ -271,6 +271,51 @@ fn pickUp() bool {
     return true;
 }
 
+fn placeSingle() bool {
+    const gx: u32 = player.gx;
+    const gy: u32 = player.gy;
+
+    const playerI: u32 = gx + gy * w;
+
+    if (!playerInput.a) {
+        return false;
+    }
+
+    if (tiles[playerI + w].tileType == .empty) {
+        return false;
+    }
+
+    var destinationI: u32 = undefined;
+    if (player.flipped) {
+        if (player.gx == 0) {
+            return false;
+        }
+
+        destinationI = playerI - 1;
+    } else {
+        if (player.gx == w - 1) {
+            return false;
+        }
+
+        destinationI = playerI + 1;
+    }
+
+    if (tiles[destinationI].tileType != .empty) {
+        destinationI += w;
+    }
+    if (tiles[destinationI].tileType != .empty) {
+        destinationI += w;
+    }
+    if (tiles[destinationI].tileType != .empty) {
+        return false;
+    }
+
+    tiles[destinationI] = tiles[playerI + w];
+    tiles[playerI + w] = empty_tile;
+
+    return true;
+}
+
 fn movePlayer() void {
     if (fall()) {
         return;
@@ -285,6 +330,10 @@ fn movePlayer() void {
     }
 
     if (pickUp()) {
+        return;
+    }
+
+    if (placeSingle()) {
         return;
     }
 }
