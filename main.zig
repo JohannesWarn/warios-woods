@@ -147,6 +147,123 @@ pub export fn game_init() void {
     tiles[playerI] = player_tile;
 }
 
+fn fall() bool {
+    const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
+
+    if (player.gy != 0 and tiles[playerI - w].tileType == .empty) {
+        player.py -= 2;
+        player.gy -= 1;
+        tiles[playerI - w] = player_tile;
+
+        return true;
+    }
+
+    return false;
+}
+
+fn escape() bool {
+    const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
+
+    if (playerInput.up and tiles[playerI + w].tileType.isSolid()) {
+        tiles[playerI] = tiles[playerI + w];
+        tiles[playerI + w] = player_tile;
+        player.gy += 1;
+
+        return true;
+    }
+
+    return false;
+}
+
+fn walk() bool {
+    const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
+
+    if (playerInput.left) {
+        const isEdge = player.gx == 0;
+        const tileIsEmpty = tiles[playerI - 1].tileType == .empty;
+        const canMove = !isEdge and tileIsEmpty;
+        if (player.flipped == true and canMove) {
+            if (tiles[playerI + w - 1].tileType == .empty) {
+                tiles[playerI + w - 1] = tiles[playerI + w];
+                tiles[playerI + w] = empty_tile;
+            }
+            tiles[playerI - 1] = player_tile;
+            player.gx -= 1;
+            player.px -= 1;
+
+            return true;
+        }
+        player.flipped = true;
+    } else if (playerInput.right) {
+        const isEdge = player.gx == w - 1;
+        const tileIsEmpty = tiles[playerI + 1].tileType == .empty;
+        const canMove = !isEdge and tileIsEmpty;
+        if (player.flipped == false and canMove) {
+            if (tiles[playerI + w + 1].tileType == .empty) {
+                tiles[playerI + w + 1] = tiles[playerI + w];
+                tiles[playerI + w] = empty_tile;
+            }
+            tiles[playerI + 1] = player_tile;
+            player.px += 1;
+
+            return true;
+        }
+        player.flipped = false;
+    }
+
+    return false;
+}
+
+fn pickUp() bool {
+    const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
+
+    if (playerInput.a) {
+        if (tiles[playerI + w].tileType == .empty) {
+            if (player.flipped) {
+                if (player.gx != 0) {
+                    if (tiles[playerI - 1].tileType != .empty) {
+                        tiles[playerI + w] = tiles[playerI - 1];
+                        tiles[playerI - 1] = empty_tile;
+                    } else if (tiles[playerI - 1 - w].tileType != .empty) {
+                        tiles[playerI + w] = tiles[playerI - 1 - w];
+                        tiles[playerI - 1 - w] = empty_tile;
+                    }
+                }
+            } else {
+                if (player.gx != w - 1) {
+                    if (tiles[playerI + 1].tileType != .empty) {
+                        tiles[playerI + w] = tiles[playerI + 1];
+                        tiles[playerI + 1] = empty_tile;
+                    } else if (tiles[playerI + 1 - w].tileType != .empty) {
+                        tiles[playerI + w] = tiles[playerI + 1 - w];
+                        tiles[playerI + 1 - w] = empty_tile;
+                    }
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+fn movePlayer() void {
+    if (fall()) {
+        return;
+    }
+
+    if (escape()) {
+        return;
+    }
+
+    if (walk()) {
+        return;
+    }
+
+    if (pickUp()) {
+        return;
+    }
+}
+
 pub export fn tick() void {
     tickCount += 1;
 
@@ -154,66 +271,7 @@ pub export fn tick() void {
 
     const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
     if (player.px == 0 and player.py == 0) {
-        if (player.gy != 0 and tiles[playerI - w].tileType == .empty) {
-            player.py -= 2;
-            player.gy -= 1;
-            tiles[playerI - w] = player_tile;
-        } else if (playerInput.up and tiles[playerI + w].tileType.isSolid()) {
-            tiles[playerI] = tiles[playerI + w];
-            tiles[playerI + w] = player_tile;
-            player.gy += 1;
-        } else if (playerInput.left) {
-            const isEdge = player.gx == 0;
-            const tileIsEmpty = tiles[playerI - 1].tileType == .empty;
-            const canMove = !isEdge and tileIsEmpty;
-            if (player.flipped == true and canMove) {
-                if (tiles[playerI + w - 1].tileType == .empty) {
-                    tiles[playerI + w - 1] = tiles[playerI + w];
-                    tiles[playerI + w] = empty_tile;
-                }
-                tiles[playerI - 1] = player_tile;
-                player.gx -= 1;
-                player.px -= 1;
-            }
-            player.flipped = true;
-        } else if (playerInput.right) {
-            const isEdge = player.gx == w - 1;
-            const tileIsEmpty = tiles[playerI + 1].tileType == .empty;
-            const canMove = !isEdge and tileIsEmpty;
-            if (player.flipped == false and canMove) {
-                if (tiles[playerI + w + 1].tileType == .empty) {
-                    tiles[playerI + w + 1] = tiles[playerI + w];
-                    tiles[playerI + w] = empty_tile;
-                }
-                tiles[playerI + 1] = player_tile;
-                player.px += 1;
-            }
-            player.flipped = false;
-        } else if (playerInput.a) {
-            if (tiles[playerI + w].tileType == .empty) {
-                if (player.flipped) {
-                    if (player.gx != 0) {
-                        if (tiles[playerI - 1].tileType != .empty) {
-                            tiles[playerI + w] = tiles[playerI - 1];
-                            tiles[playerI - 1] = empty_tile;
-                        } else if (tiles[playerI - 1 - w].tileType != .empty) {
-                            tiles[playerI + w] = tiles[playerI - 1 - w];
-                            tiles[playerI - 1 - w] = empty_tile;
-                        }
-                    }
-                } else {
-                    if (player.gx != w - 1) {
-                        if (tiles[playerI + 1].tileType != .empty) {
-                            tiles[playerI + w] = tiles[playerI + 1];
-                            tiles[playerI + 1] = empty_tile;
-                        } else if (tiles[playerI + 1 - w].tileType != .empty) {
-                            tiles[playerI + w] = tiles[playerI + 1 - w];
-                            tiles[playerI + 1 - w] = empty_tile;
-                        }
-                    }
-                }
-            }
-        }
+        movePlayer();
     } else {
         if (player.py != 0) {
             player.py -= 2;
