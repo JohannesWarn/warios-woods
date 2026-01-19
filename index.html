@@ -1,0 +1,401 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  body {
+    background: black;
+    color: white;
+    margin: 3em;
+    text-align: center;
+  }
+  canvas {
+    image-rendering: pixelated;
+    display: block;
+    border: 1px solid white;
+    margin: auto;
+    
+    width: 336px;
+    height: 528px;
+  }
+</style>
+
+<canvas id="gl-canvas" width="112" height="176"></canvas>
+<pre id="out">Loading WASM …</pre>
+<pre id="fps">FPS: …</pre>
+
+<script id="tiles-vertex-shader" type="x-shader/x-vertex">#version 300 es
+out vec2 uv;
+
+const vec2 quad[6] = vec2[6](
+  vec2(-1.0,  1.0),
+  vec2( 1.0,  1.0),
+  vec2( 1.0, -1.0),
+  vec2(-1.0,  1.0),
+  vec2( 1.0, -1.0),
+  vec2(-1.0, -1.0)
+);
+
+void main() {
+  uv = (quad[gl_VertexID] + 1.0) / 2.0;
+  gl_Position = vec4(quad[gl_VertexID], 0.0, 1.0);
+}
+</script>
+
+<script id="tiles-fragment-shader" type="x-shader/x-fragment">#version 300 es
+precision highp float;
+precision highp usampler2D;
+
+uniform sampler2D uAssets;
+uniform usampler2D uTiles;
+
+in vec2 uv;
+out vec4 outColor;
+
+void main() {
+  ivec2 tc = ivec2(int(uv.x * 7.0), int(uv.y * 11.0));
+
+  uint tile = texelFetch(uTiles, tc, 0).r;
+  
+  uint tileColor = tile & 0x7u;
+  uint tileType = (tile >> 3u) & 0x7u;
+  
+  if (tileType == 0u || tileType == 5u) {
+    discard;
+  }
+  
+  uint ty;
+  uint tx;
+  if (tileType == 1u) {
+    ty = tileColor;
+    tx = 3u;
+  } else if (tileType == 2u) {
+    ty = 3u;
+    tx = 0u;
+  } else if (tileType == 4u) {
+    ty = 3u;
+    tx = 1u;
+  }
+  
+  vec2 assetCoord = uv;
+  assetCoord.y = 1.0 - assetCoord.y;
+  assetCoord *= vec2(7.0, 11.0);
+  assetCoord = mod(assetCoord, 1.0);
+  assetCoord += vec2(tx, ty);
+  assetCoord /= vec2(6.0, 5.0);
+  
+  float asset = texture(uAssets, assetCoord).r;
+  
+  if (tileColor == 0u) {
+    outColor = vec4(asset, asset * 0.1, asset * 0.2, 1.0);
+  } else if (tileColor == 1u) {
+    outColor = vec4(0.0, asset, 0.0, 1.0);
+  } else if (tileColor == 2u) {
+    outColor = vec4(0.0, asset * 0.7, asset, 1.0);
+  }
+}
+</script>
+
+<script id="sprites-vertex-shader" type="x-shader/x-vertex">#version 300 es
+precision highp float;
+precision highp usampler2D;
+
+uniform usampler2D uSprites;
+
+out vec2 uv;
+flat out uint frameX;
+flat out uint frameY;
+flat out uint flipped;
+
+const vec2 quad[6] = vec2[6](
+  vec2(-1.0,  1.0),
+  vec2( 1.0,  1.0),
+  vec2( 1.0, -1.0),
+  vec2(-1.0,  1.0),
+  vec2( 1.0, -1.0),
+  vec2(-1.0, -1.0)
+);
+
+const vec2 sv = vec2(1.0 / 7.0, 1.0 / 11.0);
+
+void main() {
+  uint sprite = texelFetch(uSprites, ivec2(gl_InstanceID, 0), 0).r;
+  
+  uint w       =  sprite        & 0x3u;
+  uint h       = (sprite >> 2u) & 0x3u;
+  frameX  = (sprite >> 4u) & 0xFu;
+  frameY  = (sprite >> 8u) & 0xFu;
+  flipped = (sprite >> 12u) & 0x1u;
+  uint gx      = (sprite >> 13u) & 0xFu;
+  uint gy      = (sprite >> 17u) & 0xFu;
+  uint px      = (sprite >> 21u) & 0xFu;
+  uint py      = (sprite >> 25u) & 0xFu;
+  
+  uv = (quad[gl_VertexID] + 1.0) / 2.0;
+  gl_Position = vec4(
+    (quad[gl_VertexID] - vec2(6.0, 10.0)) * sv
+    + vec2(gx, gy) * sv * 2.0
+    + vec2(px, py) * sv * 0.125,
+    0.0, 1.0
+  );
+}
+</script>
+
+<script id="sprites-fragment-shader" type="x-shader/x-fragment">#version 300 es
+precision highp float;
+precision highp usampler2D;
+
+uniform sampler2D uAssets;
+
+in vec2 uv;
+flat in uint frameX;
+flat in uint frameY;
+flat in uint flipped;
+
+out vec4 outColor;
+
+void main() {
+  if (flipped == 1u) {
+    outColor = vec4(1.0 - uv.x, uv.y, 0.0, 0.5);
+  } else {
+    outColor = vec4(uv.x, uv.y, 0.0, 0.5);
+  }
+}
+</script>
+
+<script type="module">
+  const w = 7;
+  const h = 11;
+
+  // ---- WASM ----
+  
+  const out = document.getElementById("out");
+  const fpsElement = document.getElementById("fps");
+  
+  const { instance } = await WebAssembly.instantiateStreaming(
+    fetch("zig-out/bin/app.wasm?cache-break="+Date()),
+    {}
+  );
+  
+  out.textContent = "WASD + J | arrows + Z";
+  
+  const {
+    memory,
+    game_init, tick,
+    tiles_ptr, tiles_len,
+    sprites_ptr, sprites_len, sprites_count,
+    player_input_ptr
+  } = instance.exports;
+  
+  const playerInput = new Uint8Array(memory.buffer, player_input_ptr(), 1);
+  const tiles = new Uint16Array(memory.buffer, tiles_ptr(), tiles_len());
+  const sprites = new Uint32Array(memory.buffer, sprites_ptr(), sprites_len());
+  
+  game_init();
+  
+  // ---- Player input ----
+  
+  const DIR_NEUTRAL = 0;
+  const DIR_LEFT    = 1;
+  const DIR_RIGHT   = 2;
+  
+  const keyMapping = {
+    "KeyA": 0,
+    "KeyD": 1,
+    "KeyW": 2,
+    "KeyS": 3,
+    "KeyJ": 4,
+    "KeyK": 5,
+    
+    "ArrowLeft": 0,
+    "ArrowRight": 1,
+    "ArrowUp": 2,
+    "ArrowDown": 3,
+    "KeyZ": 4,
+    "KeyX": 5,
+  };
+  
+  window.addEventListener("keydown", e => {
+    if (e.repeat) return;
+    
+    const bitOffset = keyMapping[e.code];
+    if (bitOffset === undefined) { return; }
+    
+    e.preventDefault();
+    
+    playerInput[0] |= 1 << bitOffset;
+    
+    // Release left/right when pressing opposite direction
+    if (bitOffset == 0) {
+      playerInput[0] &= ~(1 << 1);
+    } else if (bitOffset == 1) {
+      playerInput[0] &= ~(1 << 0);
+    }
+  });
+  
+  window.addEventListener("keyup", e => {
+    if (e.repeat) return;
+    
+    const bitOffset = keyMapping[e.code];
+    if (bitOffset === undefined) { return; }
+
+    playerInput[0] &= ~(1 << bitOffset);
+  });
+  
+  // ---- WebGL ----
+  
+  const glCanvas = document.getElementById("gl-canvas");
+  const gl = glCanvas.getContext("webgl2");
+  if (!gl) throw new Error("WebGL2 not available");
+  
+  gl.disable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendEquation(gl.FUNC_ADD);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  const tilesShaderProgram = buildShaderProgram([
+    { type: gl.VERTEX_SHADER,   id: "tiles-vertex-shader" },
+    { type: gl.FRAGMENT_SHADER, id: "tiles-fragment-shader" },
+  ]);
+
+  const spritesShaderProgram = buildShaderProgram([
+    { type: gl.VERTEX_SHADER,   id: "sprites-vertex-shader" },
+    { type: gl.FRAGMENT_SHADER, id: "sprites-fragment-shader" },
+  ]);
+
+  // ---- Locations ----
+  
+  const uTiles = gl.getUniformLocation(tilesShaderProgram, "uTiles");
+  const uSprites = gl.getUniformLocation(spritesShaderProgram, "uSprites");
+  
+  // ---- Assets texture setup ----
+  
+  const assetTexture = gl.createTexture();
+  const image = new Image();
+  
+  image.onload = () => {
+    gl.bindTexture(gl.TEXTURE_2D, assetTexture);
+    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, gl.RED, gl.UNSIGNED_BYTE, image);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    
+    draw();
+  };
+  image.src = "assets.png";
+
+  // ---- Tiles setup ----
+  
+  const tilesTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tilesTexture);
+
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 2);
+
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16UI, w, h, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, tiles);
+
+  // ---- Sprites setup ----
+  
+  const spritesTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, spritesTexture);
+
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32UI, 30, 1, 0, gl.RED_INTEGER, gl.UNSIGNED_INT, sprites);
+
+  // ---- Draw loop ----
+  let lastFpsTime = performance.now();
+  let frames = 0;
+  
+  let lastTime = performance.now()
+  const maxFrameRate = 80; // 60 is our target, but we allow so flex
+  const minTimeDelta = 1000 / maxFrameRate;
+  function draw(now) {
+    if (now < lastTime + minTimeDelta) {
+      requestAnimationFrame(draw);
+      return;
+    }
+    lastTime = now;
+    
+    frames++;
+    if (now - lastFpsTime >= 1000) {
+      const fps = frames * 1000 / (now - lastFpsTime);
+      fpsElement.textContent = `FPS: ${fps.toFixed(1)}`;
+      frames = 0;
+      lastFpsTime = now;
+    }
+    
+    tick();
+    
+    // Clear
+    gl.viewport(0, 0, glCanvas.width, glCanvas.height);
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    // Tiles
+    gl.useProgram(tilesShaderProgram);
+
+    // Bind tiles texture
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, tilesTexture);
+    gl.uniform1i(uTiles, 1);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 2);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RED_INTEGER, gl.UNSIGNED_SHORT, tiles);
+
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, 1);
+    
+    // Sprites
+    gl.useProgram(spritesShaderProgram);
+    
+    let spritesCount = sprites_count()
+    
+    // Bind sprites texture
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, spritesTexture);
+    gl.uniform1i(uSprites, 2);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, spritesCount, 1, gl.RED_INTEGER, gl.UNSIGNED_INT, sprites);
+    
+    // Attributes    
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, spritesCount);
+    
+    // Loop
+    requestAnimationFrame(draw);
+  }
+
+  // ---- Shader helpers ----
+  
+  function buildShaderProgram(shaderInfo) {
+    const program = gl.createProgram();
+    shaderInfo.forEach((desc) => {
+      const shader = compileShader(desc.id, desc.type);
+      gl.attachShader(program, shader);
+    });
+    gl.linkProgram(program);
+
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error("Program link error: " + gl.getProgramInfoLog(program));
+    }
+    return program;
+  }
+
+  function compileShader(id, type) {
+    const code = document.getElementById(id).textContent;
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, code);
+    gl.compileShader(shader);
+
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      const kind = type === gl.VERTEX_SHADER ? "vertex" : "fragment";
+      throw new Error(`Shader compile error (${kind}): ` + gl.getShaderInfoLog(shader));
+    }
+    return shader;
+  }
+</script>

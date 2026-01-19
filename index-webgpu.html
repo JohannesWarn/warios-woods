@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Jorpa’s Woods (Early Dev)</title>
+  <style>
+    canvas {
+      display: block;
+      border: 1px solid black;
+      image-rendering: pixelated;
+    }
+  </style>
+</head>
+<canvas></canvas>
+<button id="playback-button">Pause</button>
+<button id="tick-button">Tick</button>
+<pre id="out">Loading WASM …</pre>
+<script type="module">
+  const w = 7;
+  const h = 11;
+  
+  const playbackButton = document.querySelector("#playback-button");
+  const tickButton = document.querySelector("#tick-button");
+  var paused = true;
+  playbackButton.textContent = paused ? "Play" : "Pause";
+  
+  playbackButton.onclick = function() {
+    paused = !paused;
+    playbackButton.textContent = paused ? "Play" : "Pause";
+  };
+  
+  tickButton.onclick = function() {
+    tick();
+  };
+  
+  // WASM
+  
+  const out = document.getElementById("out");
+  
+  const { instance } = await WebAssembly.instantiateStreaming(
+    fetch("./zig-out/bin/app.wasm?cache-break="+Date()),
+    {}
+  );
+  
+  out.textContent = "Loaded WASM :)";
+  
+  const { memory, init, tick, shared_ptr, shared_len } = instance.exports;
+
+  const ptr = shared_ptr();
+  const len = shared_len();
+  const bufferSize = (len + 3) & ~3; // round up to multiple of 4
+  const bytes = new Uint8Array(memory.buffer, ptr, bufferSize);
+  
+  init();
+  
+  // WebGPU
+  
+  const canvas = document.querySelector("canvas");
+  const adapter = await navigator.gpu.requestAdapter();
+  const device = await adapter.requestDevice();
+  const context = canvas.getContext("webgpu");
+  const format = navigator.gpu.getPreferredCanvasFormat();
+  
+  context.configure({ device, format, alphaMode: "premultiplied" });
+  
+  canvas.width = 20 * w;
+  canvas.height = 20 * h;
+  
+  const shader = `
+    const w: u32 = 7;
+    const h: u32 = 11;
+    
+    const colors: array<vec4f, 8> = array<vec4f, 8>(
+      vec4f( 82.0 / 255.0, 211.0 / 255.0,   0 / 255.0, 1.0),
+      vec4f(255.0 / 255.0,  65.0 / 255.0,  57 / 255.0, 1.0),
+      vec4f(255.0 / 255.0, 144.0 / 255.0, 255 / 255.0, 1.0),
+      vec4f(  1.0 / 255.0, 144.0 / 255.0, 255 / 255.0, 1.0),
+      vec4f(241.0 / 255.0, 241.0 / 255.0,  49 / 255.0, 1.0),
+      vec4f( 82.0 / 255.0, 219.0 / 255.0, 248 / 255.0, 1.0),
+      vec4f(144.0 / 255.0, 144.0 / 255.0, 144 / 255.0, 1.0),
+      vec4f(241.0 / 255.0, 241.0 / 255.0, 241 / 255.0, 1.0),
+    );
+    
+    const background_color: vec4f = vec4f( 42.0 / 255.0, 110.0 / 255.0, 81 / 255.0, 1.0);
+    const outline_color: vec4f = vec4f(33.0 / 255.0, 33 / 255.0, 33 / 255.0, 1.0);
+    
+    @group(0) @binding(0)
+    var<storage, read> data: array<u32>;
+  
+    struct VSOut {
+      @builtin(position) pos: vec4f,
+      @location(0) uv: vec2f,
+      @location(1) @interpolate(flat) color: u32,
+      @location(2) @interpolate(flat) t_type: u32,
+      @location(3) @interpolate(flat) count: u32,
+    }
+    
+    const offsets = array<vec2f, 6>(
+      vec2f(-1, -1), vec2f(-1,  1), vec2f( 1, -1),
+      vec2f(-1,  1), vec2f( 1,  1), vec2f( 1, -1),
+    );
+    
+    @vertex
+    fn vs(
+      @builtin(vertex_index) vid: u32,
+      @builtin(instance_index) iid: u32,
+    ) -> VSOut {
+      var out: VSOut;
+      
+      var x = iid % w;
+      var y = iid / w;
+      out.pos = vec4f(
+        (1 + offsets[vid] + 2 * vec2f(f32(x), f32(y))) / vec2f(f32(w), f32(h)) - 1,
+        0.0, 1.0
+      );
+      
+      out.uv = vec2f(offsets[vid]);
+      
+      let tile = load_tile_u16(iid);
+      out.color = tile_color(tile);
+      out.t_type = tile_type(tile);
+      out.count = tile_count(tile);
+      
+      return out;
+    }
+    
+    fn load_tile_u16(i: u32) -> u32 {
+      let word  = data[i >> 1u];        // 2 tiles per u32
+      let shift = (i & 1u) * 16u;       // low or high 16 bits
+      return (word >> shift) & 0xffffu; // one 16-bit tile
+    }
+
+    fn tile_color(t: u32) -> u32 {
+      return t & 0x7u;                  // bits 0..2
+    }
+
+    fn tile_type(t: u32) -> u32 {
+      return (t >> 3u) & 0x7u;          // bits 3..5
+    }
+    
+    fn tile_count(t: u32) -> u32 {
+      return (t >> 6u) & 0x3fu;         // bits 6..11
+    }
+    
+    @fragment
+    fn fs(in: VSOut) -> @location(0) vec4f {
+      let color = in.color;
+      let t_type = in.t_type;
+      let count = in.count;
+      
+      if (t_type == 0) {
+        return background_color;
+      }
+      
+      if (t_type == 4) {
+        let uv2 = in.uv * in.uv;
+        let d2 = uv2.x + uv2.y;
+        if (d2 > 0.4 - 0.3 * (f32(count) / 64)) {
+          return background_color;
+        }
+        if (d2 > 0.3 - 0.3 * (f32(count) / 64)) {
+          return outline_color;
+        }
+        if (u32(f32(count) * 0.1) % 2 == 0) {
+          return background_color;
+        }
+        return colors[color];
+      }
+      
+      if (t_type == 1) {
+        let uv4 = in.uv * in.uv * in.uv * in.uv;
+        let d4 = uv4.x + uv4.y;
+        if (d4 > 0.8) {
+          return background_color;
+        }
+        if (d4 > 0.45) {
+          return outline_color;
+        }
+      } else {
+        let uv2 = in.uv * in.uv;
+        let d2 = uv2.x + uv2.y;
+        if (d2 > 0.8) {
+          return background_color;
+        }
+        if (d2 > 0.6) {
+          return outline_color;
+        }
+      }
+
+      return colors[color];
+    }
+  `;
+  
+  const module = device.createShaderModule({ code: shader });
+  
+  const paramsBuffer = device.createBuffer({
+    size: bufferSize,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+  })
+  
+  const pipeline = device.createRenderPipeline({
+    layout: "auto",
+    vertex: { module, entryPoint: "vs" },
+    fragment: {
+      module,
+      entryPoint: "fs",
+      targets: [{
+        format,
+        blend: {
+          color: { srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha", operation: "add" },
+          alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" },
+        },
+      }]
+    },
+    primitive: { topology: "triangle-list" },
+  });
+  
+  let bindGroup = device.createBindGroup({
+    layout: pipeline.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: { buffer: paramsBuffer } }
+    ]
+  });
+  
+  function frame() {
+    if (!paused) {    
+      tick();
+    }
+
+    /*
+    out.textContent =
+      `shared ptr=${ptr}, len=${len}\n` +
+      `${bytes.join(", ")}\n`;
+    */
+    
+    const encoder = device.createCommandEncoder();
+    const view = context.getCurrentTexture().createView();
+    
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [{
+        view,
+        clearValue: { r: 0, g: 0, b: 0, a: 1.0 },
+        loadOp: "clear",
+        storeOp: "store",
+      }],
+    });
+    
+    device.queue.writeBuffer(paramsBuffer, 0, bytes);
+    
+    pass.setPipeline(pipeline);
+    pass.setBindGroup(0, bindGroup);
+    pass.draw(6, w*h);
+    pass.end();
+    device.queue.submit([encoder.finish()]);
+    
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+</script>
+</html>
