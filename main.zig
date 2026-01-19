@@ -176,42 +176,57 @@ fn escape() bool {
 }
 
 fn walk() bool {
-    const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
+    const gx: u32 = player.gx;
+    const gy: u32 = player.gy;
 
+    const playerI: u32 = gx + gy * w;
+
+    var targetFlipped: bool = undefined;
+    var nextI: u32 = undefined;
+    var edgeX: u32 = undefined;
     if (playerInput.left) {
-        const isEdge = player.gx == 0;
-        const tileIsEmpty = tiles[playerI - 1].tileType == .empty;
-        const canMove = !isEdge and tileIsEmpty;
-        if (player.flipped == true and canMove) {
-            if (tiles[playerI + w - 1].tileType == .empty) {
-                tiles[playerI + w - 1] = tiles[playerI + w];
-                tiles[playerI + w] = empty_tile;
-            }
-            tiles[playerI - 1] = player_tile;
-            player.gx -= 1;
-            player.px -= 1;
-
-            return true;
-        }
-        player.flipped = true;
+        targetFlipped = true;
+        nextI = playerI - 1;
+        edgeX = 0;
     } else if (playerInput.right) {
-        const isEdge = player.gx == w - 1;
-        const tileIsEmpty = tiles[playerI + 1].tileType == .empty;
-        const canMove = !isEdge and tileIsEmpty;
-        if (player.flipped == false and canMove) {
-            if (tiles[playerI + w + 1].tileType == .empty) {
-                tiles[playerI + w + 1] = tiles[playerI + w];
-                tiles[playerI + w] = empty_tile;
-            }
-            tiles[playerI + 1] = player_tile;
-            player.px += 1;
-
-            return true;
-        }
-        player.flipped = false;
+        targetFlipped = false;
+        nextI = playerI + 1;
+        edgeX = w - 1;
+    } else {
+        return false;
     }
 
-    return false;
+    if (player.flipped != targetFlipped) {
+        player.flipped = targetFlipped;
+        return true;
+    }
+
+    if (tiles[nextI].tileType != .empty) {
+        return false;
+    }
+
+    if (gx == edgeX) {
+        return false;
+    }
+
+    if (playerInput.left) {
+        if (tiles[playerI + w - 1].tileType == .empty) {
+            tiles[playerI + w - 1] = tiles[playerI + w];
+            tiles[playerI + w] = empty_tile;
+        }
+        player.gx -= 1;
+        player.px -= 1;
+    } else if (playerInput.right) {
+        if (tiles[playerI + w + 1].tileType == .empty) {
+            tiles[playerI + w + 1] = tiles[playerI + w];
+            tiles[playerI + w] = empty_tile;
+        }
+        player.px += 1;
+    }
+
+    tiles[nextI] = player_tile;
+
+    return true;
 }
 
 fn pickUp() bool {
