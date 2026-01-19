@@ -230,35 +230,45 @@ fn walk() bool {
 }
 
 fn pickUp() bool {
-    const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
+    const gx: u32 = player.gx;
+    const gy: u32 = player.gy;
 
-    if (playerInput.a) {
-        if (tiles[playerI + w].tileType == .empty) {
-            if (player.flipped) {
-                if (player.gx != 0) {
-                    if (tiles[playerI - 1].tileType != .empty) {
-                        tiles[playerI + w] = tiles[playerI - 1];
-                        tiles[playerI - 1] = empty_tile;
-                    } else if (tiles[playerI - 1 - w].tileType != .empty) {
-                        tiles[playerI + w] = tiles[playerI - 1 - w];
-                        tiles[playerI - 1 - w] = empty_tile;
-                    }
-                }
-            } else {
-                if (player.gx != w - 1) {
-                    if (tiles[playerI + 1].tileType != .empty) {
-                        tiles[playerI + w] = tiles[playerI + 1];
-                        tiles[playerI + 1] = empty_tile;
-                    } else if (tiles[playerI + 1 - w].tileType != .empty) {
-                        tiles[playerI + w] = tiles[playerI + 1 - w];
-                        tiles[playerI + 1 - w] = empty_tile;
-                    }
-                }
-            }
-        }
+    const playerI: u32 = gx + gy * w;
+
+    if (!playerInput.a) {
+        return false;
     }
 
-    return false;
+    if (tiles[playerI + w].tileType != .empty) {
+        return false;
+    }
+
+    var sourceI: u32 = undefined;
+    if (player.flipped) {
+        if (player.gx == 0) {
+            return false;
+        }
+
+        sourceI = playerI - 1;
+    } else {
+        if (player.gx == w - 1) {
+            return false;
+        }
+
+        sourceI = playerI + 1;
+    }
+
+    if (tiles[sourceI].tileType == .empty) {
+        sourceI -= w;
+    }
+    if (tiles[sourceI].tileType == .empty) {
+        return false;
+    }
+
+    tiles[playerI + w] = tiles[sourceI];
+    tiles[sourceI] = empty_tile;
+
+    return true;
 }
 
 fn movePlayer() void {
