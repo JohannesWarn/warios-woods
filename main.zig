@@ -270,7 +270,6 @@ fn pickUpAll() bool {
     }
 
     var offset: u32 = 0;
-
     while (tiles[sourceI + w * offset].tileType.isSolid()) {
         if (tiles[playerI + w + w * offset].tileType != .empty) {
             return false;
@@ -283,6 +282,66 @@ fn pickUpAll() bool {
     while (tiles[sourceI + w * offset].tileType.isSolid()) {
         tiles[playerI + w + w * offset] = tiles[sourceI + w * offset];
         tiles[sourceI + w * offset] = empty_tile;
+
+        offset += 1;
+    }
+
+    return true;
+}
+
+fn placeAll() bool {
+    const gx: u32 = player.gx;
+    const gy: u32 = player.gy;
+
+    const playerI: u32 = gx + gy * w;
+
+    if (!playerInput.b) {
+        return false;
+    }
+
+    if (tiles[playerI + w].tileType == .empty) {
+        return false;
+    }
+
+    var destinationI: u32 = undefined;
+    if (player.flipped) {
+        if (player.gx == 0) {
+            return false;
+        }
+
+        destinationI = playerI - 1;
+    } else {
+        if (player.gx == w - 1) {
+            return false;
+        }
+
+        destinationI = playerI + 1;
+    }
+
+    if (!(tiles[destinationI].tileType == .empty or tiles[destinationI].tileType == .player)) {
+        destinationI += w;
+    }
+    if (!(tiles[destinationI].tileType == .empty or tiles[destinationI].tileType == .player)) {
+        destinationI += w;
+    }
+    if (!(tiles[destinationI].tileType == .empty or tiles[destinationI].tileType == .player)) {
+        return false;
+    }
+
+    var offset: u32 = 0;
+    while (tiles[playerI + w + w * offset].tileType.isSolid()) {
+        const destinationTileType = tiles[destinationI + w * offset].tileType;
+        if (!(destinationTileType == .empty or destinationTileType == .player)) {
+            return false;
+        }
+
+        offset += 1;
+    }
+
+    offset = 0;
+    while (tiles[playerI + w + w * offset].tileType.isSolid()) {
+        tiles[destinationI + w * offset] = tiles[playerI + w + w * offset];
+        tiles[playerI + w + w * offset] = empty_tile;
 
         offset += 1;
     }
@@ -423,6 +482,11 @@ fn movePlayer() void {
     }
 
     if (pickUpAll()) {
+        playerCooldown = 10;
+        return;
+    }
+
+    if (placeAll()) {
         playerCooldown = 10;
         return;
     }
