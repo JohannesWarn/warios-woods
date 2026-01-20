@@ -230,6 +230,66 @@ fn startWalk() bool {
     return true;
 }
 
+fn pickUpAll() bool {
+    const gx: u32 = player.gx;
+    const gy: u32 = player.gy;
+
+    const playerI: u32 = gx + gy * w;
+
+    if (!playerInput.b) {
+        return false;
+    }
+
+    if (tiles[playerI + w].tileType != .empty) {
+        return false;
+    }
+
+    var sourceI: u32 = undefined;
+    if (player.flipped) {
+        if (player.gx == 0) {
+            return false;
+        }
+
+        sourceI = playerI - 1;
+    } else {
+        if (player.gx == w - 1) {
+            return false;
+        }
+
+        sourceI = playerI + 1;
+    }
+
+    if (!tiles[sourceI].tileType.isSolid()) {
+        if (tiles[sourceI].tileType == .explosion) {
+            return false;
+        }
+        sourceI -= w;
+    }
+    if (!tiles[sourceI].tileType.isSolid()) {
+        return false;
+    }
+
+    var offset: u32 = 0;
+
+    while (tiles[sourceI + w * offset].tileType.isSolid()) {
+        if (tiles[playerI + w + w * offset].tileType != .empty) {
+            return false;
+        }
+
+        offset += 1;
+    }
+
+    offset = 0;
+    while (tiles[sourceI + w * offset].tileType.isSolid()) {
+        tiles[playerI + w + w * offset] = tiles[sourceI + w * offset];
+        tiles[sourceI + w * offset] = empty_tile;
+
+        offset += 1;
+    }
+
+    return true;
+}
+
 fn pickUpSingle() bool {
     const gx: u32 = player.gx;
     const gy: u32 = player.gy;
@@ -359,6 +419,11 @@ fn movePlayer() void {
     }
 
     if (playerCooldown != 0) {
+        return;
+    }
+
+    if (pickUpAll()) {
+        playerCooldown = 10;
         return;
     }
 
