@@ -424,13 +424,13 @@ fn placeSingle() bool {
         destinationI = playerI + 1;
     }
 
-    if (tiles[destinationI].tileType != .empty) {
+    if (!(tiles[destinationI].tileType == .empty or tiles[destinationI].tileType == .player)) {
         destinationI += w;
     }
-    if (tiles[destinationI].tileType != .empty) {
+    if (!(tiles[destinationI].tileType == .empty or tiles[destinationI].tileType == .player)) {
         destinationI += w;
     }
-    if (tiles[destinationI].tileType != .empty) {
+    if (!(tiles[destinationI].tileType == .empty or tiles[destinationI].tileType == .player)) {
         return false;
     }
 
