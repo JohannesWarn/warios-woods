@@ -202,7 +202,7 @@ fn startWalk() bool {
         return true;
     }
 
-    if (tiles[nextI].tileType != .empty) {
+    if (!(tiles[nextI].tileType == .empty or tiles[nextI].tileType == .player)) {
         return false;
     }
 
@@ -230,7 +230,7 @@ fn startWalk() bool {
     return true;
 }
 
-fn pickUp() bool {
+fn pickUpSingle() bool {
     const gx: u32 = player.gx;
     const gy: u32 = player.gy;
 
@@ -259,15 +259,16 @@ fn pickUp() bool {
         sourceI = playerI + 1;
     }
 
-    if (tiles[sourceI].tileType == .empty) {
+    if (tiles[sourceI].tileType == .empty or tiles[sourceI].tileType == .player) {
         sourceI -= w;
     }
-    if (tiles[sourceI].tileType == .empty) {
+    if (tiles[sourceI].tileType == .empty or tiles[sourceI].tileType == .player) {
         return false;
     }
 
     tiles[playerI + w] = tiles[sourceI];
-    tiles[sourceI] = empty_tile;
+    tiles[sourceI] = player_tile;
+    tiles[sourceI].count = 15;
 
     return true;
 }
@@ -358,6 +359,16 @@ fn movePlayer() void {
         return;
     }
 
+    if (pickUpSingle()) {
+        playerCooldown = 10;
+        return;
+    }
+
+    if (placeSingle()) {
+        playerCooldown = 10;
+        return;
+    }
+
     if (startFall()) {
         return;
     }
@@ -368,16 +379,6 @@ fn movePlayer() void {
 
     if (startWalk()) {
         playerCooldown = 6;
-        return;
-    }
-
-    if (pickUp()) {
-        playerCooldown = 10;
-        return;
-    }
-
-    if (placeSingle()) {
-        playerCooldown = 10;
         return;
     }
 }
@@ -395,7 +396,11 @@ pub export fn tick() void {
         }
 
         if (tiles[i].count != 0) {
-            if (playerInput.down and tiles[i].tileType != .explosion) {
+            if (tiles[i].tileType == .player and tiles[i].count == 1) {
+                tiles[i] = empty_tile;
+            }
+
+            if (playerInput.down and tiles[i].tileType.isSolid()) {
                 tiles[i].count -= @min(tiles[i].count, 10);
             } else {
                 tiles[i].count -= 1;
