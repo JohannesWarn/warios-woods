@@ -259,10 +259,13 @@ fn pickUpSingle() bool {
         sourceI = playerI + 1;
     }
 
-    if (tiles[sourceI].tileType == .empty or tiles[sourceI].tileType == .player) {
+    if (!tiles[sourceI].tileType.isSolid()) {
+        if (tiles[sourceI].tileType == .explosion) {
+            return false;
+        }
         sourceI -= w;
     }
-    if (tiles[sourceI].tileType == .empty or tiles[sourceI].tileType == .player) {
+    if (!tiles[sourceI].tileType.isSolid()) {
         return false;
     }
 
@@ -369,11 +372,11 @@ fn movePlayer() void {
         return;
     }
 
-    if (startFall()) {
+    if (escape()) {
         return;
     }
 
-    if (escape()) {
+    if (startFall()) {
         return;
     }
 
