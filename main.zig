@@ -211,16 +211,22 @@ fn startWalk() bool {
     }
 
     if (playerInput.left) {
-        if (tiles[playerI + w - 1].tileType == .empty) {
-            tiles[playerI + w - 1] = tiles[playerI + w];
-            tiles[playerI + w] = empty_tile;
+        var offset: u32 = 0;
+        while (tiles[playerI + w - 1 + offset * w].tileType == .empty and tiles[playerI + w + offset * w].tileType.isSolid()) {
+            tiles[playerI + w - 1 + offset * w] = tiles[playerI + w + offset * w];
+            tiles[playerI + w + offset * w] = empty_tile;
+
+            offset += 1;
         }
         player.gx -= 1;
         player.px -= 1;
     } else if (playerInput.right) {
-        if (tiles[playerI + w + 1].tileType == .empty) {
-            tiles[playerI + w + 1] = tiles[playerI + w];
-            tiles[playerI + w] = empty_tile;
+        var offset: u32 = 0;
+        while (tiles[playerI + w + 1 + offset * w].tileType == .empty and tiles[playerI + w + offset * w].tileType.isSolid()) {
+            tiles[playerI + w + 1 + offset * w] = tiles[playerI + w + offset * w];
+            tiles[playerI + w + offset * w] = empty_tile;
+
+            offset += 1;
         }
         player.px += 1;
     }
