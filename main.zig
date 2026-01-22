@@ -166,7 +166,7 @@ fn startFall() bool {
         return false;
     }
 
-    player.py -= 2;
+    player.py = 16 - 2;
     player.gy -= 1;
     tiles[playerI - w] = player_tile;
 
@@ -179,6 +179,10 @@ fn escape() bool {
     const playerI: usize = gx + gy * w;
 
     if (!playerInput.up) {
+        return false;
+    }
+
+    if (playerI + w >= w * h) {
         return false;
     }
 
@@ -234,17 +238,17 @@ fn startWalk() bool {
 
     if (playerInput.left) {
         var offset: usize = 0;
-        while (tiles[playerI + w - 1 + offset].tileType == .empty and tiles[playerI + w + offset].tileType.isSolid()) {
+        while (playerI + w - 1 + offset < w * h and tiles[playerI + w - 1 + offset].tileType == .empty and tiles[playerI + w + offset].tileType.isSolid()) {
             tiles[playerI + w - 1 + offset] = tiles[playerI + w + offset];
             tiles[playerI + w + offset] = empty_tile;
 
             offset += w;
         }
         player.gx -= 1;
-        player.px -= 1;
+        player.px = 16 - 1;
     } else if (playerInput.right) {
         var offset: usize = 0;
-        while (tiles[playerI + w + 1 + offset].tileType == .empty and tiles[playerI + w + offset].tileType.isSolid()) {
+        while (playerI + w + 1 + offset < w * h and tiles[playerI + w + 1 + offset].tileType == .empty and tiles[playerI + w + offset].tileType.isSolid()) {
             tiles[playerI + w + 1 + offset] = tiles[playerI + w + offset];
             tiles[playerI + w + offset] = empty_tile;
 
@@ -262,6 +266,10 @@ fn pickUpAll() bool {
     const gx: usize = player.gx;
     const gy: usize = player.gy;
     const playerI: usize = gx + gy * w;
+
+    if (gy == h - 1) {
+        return false;
+    }
 
     if (playerActionQueue.b != .waitingForGame) {
         return false;
@@ -297,7 +305,10 @@ fn pickUpAll() bool {
     }
 
     var offset: usize = 0;
-    while (tiles[sourceI + w * offset].tileType.isSolid()) {
+    while (sourceI + w * offset < w * h and tiles[sourceI + w * offset].tileType.isSolid()) {
+        if (playerI + w + w * offset >= w * h) {
+            return false;
+        }
         if (tiles[playerI + w + w * offset].tileType != .empty) {
             return false;
         }
@@ -306,7 +317,7 @@ fn pickUpAll() bool {
     }
 
     offset = 0;
-    while (tiles[sourceI + w * offset].tileType.isSolid()) {
+    while (sourceI + w * offset < w * h and tiles[sourceI + w * offset].tileType.isSolid()) {
         tiles[playerI + w + w * offset] = tiles[sourceI + w * offset];
         tiles[sourceI + w * offset] = empty_tile;
 
@@ -320,6 +331,10 @@ fn placeAll() bool {
     const gx: usize = player.gx;
     const gy: usize = player.gy;
     const playerI: usize = gx + gy * w;
+
+    if (gy == h - 1) {
+        return false;
+    }
 
     if (playerActionQueue.b != .waitingForGame) {
         return false;
@@ -346,30 +361,36 @@ fn placeAll() bool {
 
     if (!(tiles[destinationI].tileType == .empty or tiles[destinationI].tileType == .player)) {
         destinationI += w;
+        if (destinationI >= w * h) {
+            return false;
+        }
     }
     if (!(tiles[destinationI].tileType == .empty or tiles[destinationI].tileType == .player)) {
         destinationI += w;
+        if (destinationI >= w * h) {
+            return false;
+        }
     }
     if (!(tiles[destinationI].tileType == .empty or tiles[destinationI].tileType == .player)) {
         return false;
     }
 
     var offset: usize = 0;
-    while (tiles[playerI + w + w * offset].tileType.isSolid()) {
-        const destinationTileType = tiles[destinationI + w * offset].tileType;
+    while (playerI + w + offset < w * h and tiles[playerI + w + offset].tileType.isSolid()) {
+        const destinationTileType = tiles[destinationI + offset].tileType;
         if (!(destinationTileType == .empty or destinationTileType == .player)) {
             return false;
         }
 
-        offset += 1;
+        offset += w;
     }
 
     offset = 0;
-    while (tiles[playerI + w + w * offset].tileType.isSolid()) {
-        tiles[destinationI + w * offset] = tiles[playerI + w + w * offset];
-        tiles[playerI + w + w * offset] = empty_tile;
+    while (playerI + w + offset < w * h and tiles[playerI + w + offset].tileType.isSolid()) {
+        tiles[destinationI + offset] = tiles[playerI + w + offset];
+        tiles[playerI + w + offset] = empty_tile;
 
-        offset += 1;
+        offset += w;
     }
 
     return true;
@@ -379,6 +400,10 @@ fn pickUpSingle() bool {
     const gx: usize = player.gx;
     const gy: usize = player.gy;
     const playerI: usize = gx + gy * w;
+
+    if (gy == h - 1) {
+        return false;
+    }
 
     if (playerActionQueue.a != .waitingForGame) {
         return false;
@@ -403,12 +428,17 @@ fn pickUpSingle() bool {
         sourceI = playerI + 1;
     }
 
-    if (!tiles[sourceI].tileType.isSolid()) {
-        if (tiles[sourceI].tileType == .explosion) {
+    const tileInfront = tiles[sourceI];
+    if (!tileInfront.tileType.isSolid()) {
+        if (tileInfront.tileType == .explosion) {
+            return false;
+        }
+        if (sourceI < w) {
             return false;
         }
         sourceI -= w;
     }
+
     if (!tiles[sourceI].tileType.isSolid()) {
         return false;
     }
@@ -424,6 +454,10 @@ fn placeSingle() bool {
     const gx: usize = player.gx;
     const gy: usize = player.gy;
     const playerI: usize = gx + gy * w;
+
+    if (gy == h - 1) {
+        return false;
+    }
 
     if (playerActionQueue.a != .waitingForGame) {
         return false;
@@ -500,12 +534,14 @@ fn walkPixels() bool {
             }
         }
     } else {
-        player.px += 1;
-        if (player.px == 0) {
+        if (player.px == 15) {
+            player.px = 0;
             player.gx += 1;
             if (tiles[playerI].tileType == .player) {
                 tiles[playerI] = empty_tile;
             }
+        } else {
+            player.px += 1;
         }
     }
     return true;
@@ -607,6 +643,7 @@ pub export fn tick() void {
         if (tile.count != 0) {
             if (tile.tileType == .player and tile.count == 1) {
                 tiles[i] = empty_tile;
+                continue;
             }
 
             if (playerInput.down and tile.tileType.isSolid()) {
