@@ -21,6 +21,16 @@ const PlayerInput = packed struct(u8) {
     _pad: u2 = 0,
 };
 
+const ActionState = enum {
+    waitingForInput,
+    waitingForGame,
+    waitingForRelease,
+};
+const ActionQueue = struct {
+    a: ActionState = .waitingForInput,
+    b: ActionState = .waitingForInput,
+};
+
 // ---
 
 const TileType = enum(u3) {
@@ -76,6 +86,7 @@ const Sprite = packed struct(u32) {
 // State
 
 var playerInput = PlayerInput{};
+var playerActionQueue = ActionQueue{};
 var playerCooldown: u8 = 0;
 var tiles: [w * h]Tile = [_]Tile{empty_tile} ** (w * h);
 var sprites: [30]Sprite = undefined;
@@ -115,13 +126,13 @@ pub export fn player_input_ptr() *PlayerInput {
 // Functions
 
 pub export fn game_init() void {
-    var i: u8 = 0;
-    while (i < 7 * 3) : (i += 1) {
+    var i: usize = 0;
+    while (i < 7 * 8) : (i += 1) {
         var tileType: TileType = undefined;
         tileType = .monster;
 
         tiles[i] = Tile{
-            .color = @truncate((i) % 3),
+            .color = @truncate((i + (i % 3) + (3 * i % 5) + (1 * i % 9)) % 8),
             .tileType = tileType,
             .count = 0,
         };
@@ -167,7 +178,11 @@ fn escape() bool {
     const gy: usize = player.gy;
     const playerI: usize = gx + gy * w;
 
-    if (!playerInput.up or !tiles[playerI + w].tileType.isSolid()) {
+    if (!playerInput.up) {
+        return false;
+    }
+
+    if (!tiles[playerI + w].tileType.isSolid()) {
         return false;
     }
 
@@ -248,7 +263,7 @@ fn pickUpAll() bool {
     const gy: usize = player.gy;
     const playerI: usize = gx + gy * w;
 
-    if (!playerInput.b) {
+    if (playerActionQueue.b != .waitingForGame) {
         return false;
     }
 
@@ -306,7 +321,7 @@ fn placeAll() bool {
     const gy: usize = player.gy;
     const playerI: usize = gx + gy * w;
 
-    if (!playerInput.b) {
+    if (playerActionQueue.b != .waitingForGame) {
         return false;
     }
 
@@ -365,7 +380,7 @@ fn pickUpSingle() bool {
     const gy: usize = player.gy;
     const playerI: usize = gx + gy * w;
 
-    if (!playerInput.a) {
+    if (playerActionQueue.a != .waitingForGame) {
         return false;
     }
 
@@ -410,7 +425,7 @@ fn placeSingle() bool {
     const gy: usize = player.gy;
     const playerI: usize = gx + gy * w;
 
-    if (!playerInput.a) {
+    if (playerActionQueue.a != .waitingForGame) {
         return false;
     }
 
@@ -497,6 +512,26 @@ fn walkPixels() bool {
 }
 
 fn movePlayer() void {
+    if (playerInput.a) {
+        if (playerActionQueue.a == .waitingForInput) {
+            playerActionQueue.a = .waitingForGame;
+        }
+    } else {
+        if (playerActionQueue.a == .waitingForRelease) {
+            playerActionQueue.a = .waitingForInput;
+        }
+    }
+
+    if (playerInput.b) {
+        if (playerActionQueue.b == .waitingForInput) {
+            playerActionQueue.b = .waitingForGame;
+        }
+    } else {
+        if (playerActionQueue.b == .waitingForRelease) {
+            playerActionQueue.b = .waitingForInput;
+        }
+    }
+
     if (playerCooldown != 0) {
         playerCooldown -= 1;
     }
@@ -517,22 +552,30 @@ fn movePlayer() void {
     if (playerCooldown == 0) {
         if (pickUpAll()) {
             playerCooldown = 10;
+            playerActionQueue.b = .waitingForRelease;
             return;
         }
-
         if (placeAll()) {
             playerCooldown = 10;
+            playerActionQueue.b = .waitingForRelease;
             return;
+        }
+        if (playerActionQueue.b == .waitingForGame) {
+            playerActionQueue.b = .waitingForRelease;
         }
 
         if (pickUpSingle()) {
             playerCooldown = 10;
+            playerActionQueue.a = .waitingForRelease;
             return;
         }
-
         if (placeSingle()) {
             playerCooldown = 10;
+            playerActionQueue.a = .waitingForRelease;
             return;
+        }
+        if (playerActionQueue.a == .waitingForGame) {
+            playerActionQueue.a = .waitingForRelease;
         }
 
         if (escape()) {
@@ -669,14 +712,14 @@ pub export fn tick() void {
         const x: usize = @truncate((bombCount + bombCount % 3 + bombCount % 4) % 8);
         if (tiles[w * h - 1 - x].tileType == .empty) {
             var tileType: TileType = undefined;
-            if (bombCount % 3 == 0) {
+            if (bombCount % 5 == 0) {
                 tileType = .monster;
             } else {
                 tileType = .bomb;
             }
 
             tiles[w * h - 1 - x] = Tile{
-                .color = @truncate(((bombCount % 5) + bombCount) % 3),
+                .color = @truncate(((bombCount % 5) + bombCount) % 8),
                 .tileType = tileType,
                 .count = fallDuration,
             };
