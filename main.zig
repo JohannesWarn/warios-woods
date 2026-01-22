@@ -217,22 +217,21 @@ fn startWalk() bool {
     const playerI: usize = gx + gy * w;
 
     var nextI: usize = undefined;
-    var edgeX: usize = undefined;
     if (playerInput.left) {
+        if (gx == 0) {
+            return false;
+        }
         nextI = playerI - 1;
-        edgeX = 0;
     } else if (playerInput.right) {
+        if (gx == w - 1) {
+            return false;
+        }
         nextI = playerI + 1;
-        edgeX = w - 1;
     } else {
         return false;
     }
 
     if (!(tiles[nextI].tileType == .empty or tiles[nextI].tileType == .player)) {
-        return false;
-    }
-
-    if (gx == edgeX) {
         return false;
     }
 
@@ -296,6 +295,9 @@ fn pickUpAll() bool {
 
     if (!tiles[sourceI].tileType.isSolid()) {
         if (tiles[sourceI].tileType == .explosion) {
+            return false;
+        }
+        if (sourceI < w) {
             return false;
         }
         sourceI -= w;
@@ -484,9 +486,15 @@ fn placeSingle() bool {
 
     if (!(tiles[destinationI].tileType == .empty or tiles[destinationI].tileType == .player)) {
         destinationI += w;
+        if (destinationI >= w * h) {
+            return false;
+        }
     }
     if (!(tiles[destinationI].tileType == .empty or tiles[destinationI].tileType == .player)) {
         destinationI += w;
+        if (destinationI >= w * h) {
+            return false;
+        }
     }
     if (!(tiles[destinationI].tileType == .empty or tiles[destinationI].tileType == .player)) {
         return false;
