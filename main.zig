@@ -178,29 +178,35 @@ fn escape() bool {
     return true;
 }
 
+fn turnAround() bool {
+    if (playerInput.left and !player.flipped) {
+        player.flipped = true;
+        return true;
+    }
+
+    if (playerInput.right and player.flipped) {
+        player.flipped = false;
+        return true;
+    }
+
+    return false;
+}
+
 fn startWalk() bool {
     const gx: usize = player.gx;
     const gy: usize = player.gy;
     const playerI: usize = gx + gy * w;
 
-    var targetFlipped: bool = undefined;
     var nextI: usize = undefined;
     var edgeX: usize = undefined;
     if (playerInput.left) {
-        targetFlipped = true;
         nextI = playerI - 1;
         edgeX = 0;
     } else if (playerInput.right) {
-        targetFlipped = false;
         nextI = playerI + 1;
         edgeX = w - 1;
     } else {
         return false;
-    }
-
-    if (player.flipped != targetFlipped) {
-        player.flipped = targetFlipped;
-        return true;
     }
 
     if (!(tiles[nextI].tileType == .empty or tiles[nextI].tileType == .player)) {
@@ -503,41 +509,45 @@ fn movePlayer() void {
         return;
     }
 
-    if (playerCooldown != 0) {
+    if (turnAround()) {
+        playerCooldown = 6;
         return;
     }
 
-    if (pickUpAll()) {
-        playerCooldown = 10;
-        return;
-    }
+    if (playerCooldown == 0) {
+        if (pickUpAll()) {
+            playerCooldown = 10;
+            return;
+        }
 
-    if (placeAll()) {
-        playerCooldown = 10;
-        return;
-    }
+        if (placeAll()) {
+            playerCooldown = 10;
+            return;
+        }
 
-    if (pickUpSingle()) {
-        playerCooldown = 10;
-        return;
-    }
+        if (pickUpSingle()) {
+            playerCooldown = 10;
+            return;
+        }
 
-    if (placeSingle()) {
-        playerCooldown = 10;
-        return;
-    }
+        if (placeSingle()) {
+            playerCooldown = 10;
+            return;
+        }
 
-    if (escape()) {
-        return;
+        if (escape()) {
+            return;
+        }
     }
 
     if (startFall()) {
         return;
     }
 
-    if (startWalk()) {
-        playerCooldown = 6;
-        return;
+    if (playerCooldown == 0) {
+        if (startWalk()) {
+            return;
+        }
     }
 }
 
