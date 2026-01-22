@@ -379,6 +379,9 @@ fn placeAll() bool {
 
     var offset: usize = 0;
     while (playerI + w + offset < w * h and tiles[playerI + w + offset].tileType.isSolid()) {
+        if (destinationI + offset >= w * h) {
+            return false;
+        }
         const destinationTileType = tiles[destinationI + offset].tileType;
         if (!(destinationTileType == .empty or destinationTileType == .player)) {
             return false;
