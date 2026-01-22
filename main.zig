@@ -342,7 +342,7 @@ fn placeAll() bool {
         return false;
     }
 
-    if (tiles[playerI + w].tileType == .empty) {
+    if (!tiles[playerI + w].tileType.isSolid()) {
         return false;
     }
 
@@ -465,7 +465,7 @@ fn placeSingle() bool {
         return false;
     }
 
-    if (tiles[playerI + w].tileType == .empty) {
+    if (!tiles[playerI + w].tileType.isSolid()) {
         return false;
     }
 
