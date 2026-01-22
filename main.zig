@@ -92,16 +92,16 @@ pub export fn tiles_ptr() [*]Tile {
     return tiles[0..].ptr;
 }
 
-pub export fn tiles_len() u32 {
-    return @as(u32, tiles.len);
+pub export fn tiles_len() usize {
+    return @as(usize, tiles.len);
 }
 
 pub export fn sprites_ptr() [*]Sprite {
     return sprites[0..].ptr;
 }
 
-pub export fn sprites_len() u32 {
-    return @as(u32, 30);
+pub export fn sprites_len() usize {
+    return @as(usize, 30);
 }
 
 pub export fn sprites_count() u8 {
@@ -116,11 +116,7 @@ pub export fn player_input_ptr() *PlayerInput {
 
 pub export fn game_init() void {
     var i: u8 = 0;
-    while (i < 7 * 3) {
-        defer {
-            i += 1;
-        }
-
+    while (i < 7 * 3) : (i += 1) {
         var tileType: TileType = undefined;
         tileType = .monster;
 
@@ -144,12 +140,16 @@ pub export fn game_init() void {
         .py = 0,
     };
 
-    const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
+    const gx: usize = player.gx;
+    const gy: usize = player.gy;
+    const playerI: usize = gx + gy * w;
     tiles[playerI] = player_tile;
 }
 
 fn startFall() bool {
-    const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
+    const gx: usize = player.gx;
+    const gy: usize = player.gy;
+    const playerI: usize = gx + gy * w;
 
     if (player.gy == 0 or tiles[playerI - w].tileType != .empty) {
         return false;
@@ -163,7 +163,9 @@ fn startFall() bool {
 }
 
 fn escape() bool {
-    const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
+    const gx: usize = player.gx;
+    const gy: usize = player.gy;
+    const playerI: usize = gx + gy * w;
 
     if (!playerInput.up or !tiles[playerI + w].tileType.isSolid()) {
         return false;
@@ -177,14 +179,13 @@ fn escape() bool {
 }
 
 fn startWalk() bool {
-    const gx: u32 = player.gx;
-    const gy: u32 = player.gy;
-
-    const playerI: u32 = gx + gy * w;
+    const gx: usize = player.gx;
+    const gy: usize = player.gy;
+    const playerI: usize = gx + gy * w;
 
     var targetFlipped: bool = undefined;
-    var nextI: u32 = undefined;
-    var edgeX: u32 = undefined;
+    var nextI: usize = undefined;
+    var edgeX: usize = undefined;
     if (playerInput.left) {
         targetFlipped = true;
         nextI = playerI - 1;
@@ -211,22 +212,22 @@ fn startWalk() bool {
     }
 
     if (playerInput.left) {
-        var offset: u32 = 0;
-        while (tiles[playerI + w - 1 + offset * w].tileType == .empty and tiles[playerI + w + offset * w].tileType.isSolid()) {
-            tiles[playerI + w - 1 + offset * w] = tiles[playerI + w + offset * w];
-            tiles[playerI + w + offset * w] = empty_tile;
+        var offset: usize = 0;
+        while (tiles[playerI + w - 1 + offset].tileType == .empty and tiles[playerI + w + offset].tileType.isSolid()) {
+            tiles[playerI + w - 1 + offset] = tiles[playerI + w + offset];
+            tiles[playerI + w + offset] = empty_tile;
 
-            offset += 1;
+            offset += w;
         }
         player.gx -= 1;
         player.px -= 1;
     } else if (playerInput.right) {
-        var offset: u32 = 0;
-        while (tiles[playerI + w + 1 + offset * w].tileType == .empty and tiles[playerI + w + offset * w].tileType.isSolid()) {
-            tiles[playerI + w + 1 + offset * w] = tiles[playerI + w + offset * w];
-            tiles[playerI + w + offset * w] = empty_tile;
+        var offset: usize = 0;
+        while (tiles[playerI + w + 1 + offset].tileType == .empty and tiles[playerI + w + offset].tileType.isSolid()) {
+            tiles[playerI + w + 1 + offset] = tiles[playerI + w + offset];
+            tiles[playerI + w + offset] = empty_tile;
 
-            offset += 1;
+            offset += w;
         }
         player.px += 1;
     }
@@ -237,10 +238,9 @@ fn startWalk() bool {
 }
 
 fn pickUpAll() bool {
-    const gx: u32 = player.gx;
-    const gy: u32 = player.gy;
-
-    const playerI: u32 = gx + gy * w;
+    const gx: usize = player.gx;
+    const gy: usize = player.gy;
+    const playerI: usize = gx + gy * w;
 
     if (!playerInput.b) {
         return false;
@@ -250,7 +250,7 @@ fn pickUpAll() bool {
         return false;
     }
 
-    var sourceI: u32 = undefined;
+    var sourceI: usize = undefined;
     if (player.flipped) {
         if (player.gx == 0) {
             return false;
@@ -275,7 +275,7 @@ fn pickUpAll() bool {
         return false;
     }
 
-    var offset: u32 = 0;
+    var offset: usize = 0;
     while (tiles[sourceI + w * offset].tileType.isSolid()) {
         if (tiles[playerI + w + w * offset].tileType != .empty) {
             return false;
@@ -296,10 +296,9 @@ fn pickUpAll() bool {
 }
 
 fn placeAll() bool {
-    const gx: u32 = player.gx;
-    const gy: u32 = player.gy;
-
-    const playerI: u32 = gx + gy * w;
+    const gx: usize = player.gx;
+    const gy: usize = player.gy;
+    const playerI: usize = gx + gy * w;
 
     if (!playerInput.b) {
         return false;
@@ -309,7 +308,7 @@ fn placeAll() bool {
         return false;
     }
 
-    var destinationI: u32 = undefined;
+    var destinationI: usize = undefined;
     if (player.flipped) {
         if (player.gx == 0) {
             return false;
@@ -334,7 +333,7 @@ fn placeAll() bool {
         return false;
     }
 
-    var offset: u32 = 0;
+    var offset: usize = 0;
     while (tiles[playerI + w + w * offset].tileType.isSolid()) {
         const destinationTileType = tiles[destinationI + w * offset].tileType;
         if (!(destinationTileType == .empty or destinationTileType == .player)) {
@@ -356,10 +355,9 @@ fn placeAll() bool {
 }
 
 fn pickUpSingle() bool {
-    const gx: u32 = player.gx;
-    const gy: u32 = player.gy;
-
-    const playerI: u32 = gx + gy * w;
+    const gx: usize = player.gx;
+    const gy: usize = player.gy;
+    const playerI: usize = gx + gy * w;
 
     if (!playerInput.a) {
         return false;
@@ -369,7 +367,7 @@ fn pickUpSingle() bool {
         return false;
     }
 
-    var sourceI: u32 = undefined;
+    var sourceI: usize = undefined;
     if (player.flipped) {
         if (player.gx == 0) {
             return false;
@@ -402,10 +400,9 @@ fn pickUpSingle() bool {
 }
 
 fn placeSingle() bool {
-    const gx: u32 = player.gx;
-    const gy: u32 = player.gy;
-
-    const playerI: u32 = gx + gy * w;
+    const gx: usize = player.gx;
+    const gy: usize = player.gy;
+    const playerI: usize = gx + gy * w;
 
     if (!playerInput.a) {
         return false;
@@ -415,7 +412,7 @@ fn placeSingle() bool {
         return false;
     }
 
-    var destinationI: u32 = undefined;
+    var destinationI: usize = undefined;
     if (player.flipped) {
         if (player.gx == 0) {
             return false;
@@ -446,40 +443,63 @@ fn placeSingle() bool {
     return true;
 }
 
+fn fallPixels() bool {
+    const gx: usize = player.gx;
+    const gy: usize = player.gy;
+    const playerI: usize = gx + gy * w;
+
+    if (player.py == 0) {
+        return false;
+    }
+
+    player.py -= 2;
+    if (player.py == 0) {
+        if (tiles[playerI + w].tileType == .player) {
+            tiles[playerI + w] = empty_tile;
+        }
+    }
+
+    return true;
+}
+
+fn walkPixels() bool {
+    const gx: usize = player.gx;
+    const gy: usize = player.gy;
+    const playerI: usize = gx + gy * w;
+
+    if (player.px == 0) {
+        return false;
+    }
+
+    if (player.flipped) {
+        player.px -= 1;
+        if (player.px == 0) {
+            if (tiles[playerI + 1].tileType == .player) {
+                tiles[playerI + 1] = empty_tile;
+            }
+        }
+    } else {
+        player.px += 1;
+        if (player.px == 0) {
+            player.gx += 1;
+            if (tiles[playerI].tileType == .player) {
+                tiles[playerI] = empty_tile;
+            }
+        }
+    }
+    return true;
+}
+
 fn movePlayer() void {
     if (playerCooldown != 0) {
         playerCooldown -= 1;
     }
 
-    const playerI = @as(u32, player.gx) + @as(u32, player.gy) * w;
-
-    if (player.py != 0) {
-        player.py -= 2;
-        if (player.py == 0) {
-            if (tiles[playerI + w].tileType == .player) {
-                tiles[playerI + w] = empty_tile;
-            }
-        }
+    if (fallPixels()) {
         return;
     }
 
-    if (player.px != 0) {
-        if (player.flipped) {
-            player.px -= 1;
-            if (player.px == 0) {
-                if (tiles[playerI + 1].tileType == .player) {
-                    tiles[playerI + 1] = empty_tile;
-                }
-            }
-        } else {
-            player.px += 1;
-            if (player.px == 0) {
-                player.gx += 1;
-                if (tiles[playerI].tileType == .player) {
-                    tiles[playerI] = empty_tile;
-                }
-            }
-        }
+    if (walkPixels()) {
         return;
     }
 
@@ -527,19 +547,17 @@ pub export fn tick() void {
     movePlayer();
 
     // tick all counts down
-    var i: u16 = 0;
-    while (i < w * h) {
-        defer {
-            i += 1;
-        }
+    var i: usize = 0;
+    while (i < w * h) : (i += 1) {
+        const tile = tiles[i];
 
-        if (tiles[i].count != 0) {
-            if (tiles[i].tileType == .player and tiles[i].count == 1) {
+        if (tile.count != 0) {
+            if (tile.tileType == .player and tile.count == 1) {
                 tiles[i] = empty_tile;
             }
 
-            if (playerInput.down and tiles[i].tileType.isSolid()) {
-                tiles[i].count -= @min(tiles[i].count, 10);
+            if (playerInput.down and tile.tileType.isSolid()) {
+                tiles[i].count -= @min(tile.count, 10);
             } else {
                 tiles[i].count -= 1;
             }
@@ -548,17 +566,15 @@ pub export fn tick() void {
 
     // move falling tiles
     i = 0;
-    while (i < w * (h - 1)) {
-        defer {
-            i += 1;
-        }
+    while (i < w * (h - 1)) : (i += 1) {
+        const tileAbove = tiles[i + w];
 
-        if (tiles[i + w].tileType == .player) {
+        if (!tileAbove.tileType.isSolid()) {
             continue;
         }
 
-        if (tiles[i].tileType == .empty and tiles[i + w].count == 0 and tiles[i + w].tileType != .empty and tiles[i + w].tileType != .explosion) {
-            tiles[i] = tiles[i + w];
+        if (tiles[i].tileType == .empty and tileAbove.count == 0) {
+            tiles[i] = tileAbove;
             if ((i < w) or (tiles[i - w].tileType != .empty)) {
                 tiles[i].count = 0;
             } else {
@@ -574,11 +590,7 @@ pub export fn tick() void {
     var count: u4 = 0;
     var hasSeenBomb = false;
     var conditionsSatisfied = false;
-    while (i < paths.len) {
-        defer {
-            i += 1;
-        }
-
+    while (i < paths.len) : (i += 1) {
         const j = paths[i];
 
         if (j == pathBreak) {
@@ -586,55 +598,54 @@ pub export fn tick() void {
             continue;
         }
 
-        if (tiles[j].tileType == .empty or tiles[j].tileType == .player or tiles[j].tileType == .explosion or tiles[j].count != 0) {
+        const tile = tiles[j];
+
+        if (!tile.tileType.isSolid() or tile.count != 0) {
             count = 0;
             continue;
         }
 
-        if (count == 0 or tiles[j].color != color) {
+        if (count == 0 or tile.color != color) {
             conditionsSatisfied = false;
-            hasSeenBomb = tiles[j].tileType == .bomb;
-            color = tiles[j].color;
+            hasSeenBomb = tile.tileType == .bomb;
+            color = tile.color;
             count = 1;
             continue;
         }
 
-        if (tiles[j].color == color) {
-            count += 1;
+        count += 1;
 
-            if (!hasSeenBomb) {
-                hasSeenBomb = tiles[j].tileType == .bomb;
-            }
+        if (!hasSeenBomb) {
+            hasSeenBomb = tile.tileType == .bomb;
+        }
 
-            if (conditionsSatisfied) {
-                tiles[j].willExplode = true;
-            } else if (count >= 3 and hasSeenBomb) {
-                conditionsSatisfied = true;
-                tiles[j].willExplode = true;
+        if (conditionsSatisfied) {
+            tiles[j].willExplode = true;
+        } else if (count >= 3 and hasSeenBomb) {
+            conditionsSatisfied = true;
+            tiles[j].willExplode = true;
 
-                var k: u8 = 1;
-                while (k < count) {
-                    tiles[paths[i - k]].willExplode = true;
-                    k += 1;
-                }
+            var k: u8 = 1;
+            while (k < count) {
+                tiles[paths[i - k]].willExplode = true;
+                k += 1;
             }
         }
     }
 
     // explode bombs and remove finished explosions
     i = 0;
-    while (i < w * h) {
-        defer {
-            i += 1;
+    while (i < w * h) : (i += 1) {
+        var tile = tiles[i];
+
+        if (tile.willExplode) {
+            tile.tileType = .explosion;
+            tile.count = explosionDuration;
+            tile.willExplode = false;
+            tiles[i] = tile;
         }
 
-        if (tiles[i].willExplode) {
-            tiles[i].tileType = .explosion;
-            tiles[i].count = explosionDuration;
-            tiles[i].willExplode = false;
-        }
-
-        if (tiles[i].tileType == .explosion and tiles[i].count == 0) {
+        if (tile.tileType == .explosion and tile.count == 0) {
             tiles[i] = empty_tile;
         }
     }
@@ -645,7 +656,7 @@ pub export fn tick() void {
             bombCount += 1;
         }
 
-        const x: u32 = @truncate((bombCount + bombCount % 3 + bombCount % 4) % 8);
+        const x: usize = @truncate((bombCount + bombCount % 3 + bombCount % 4) % 8);
         if (tiles[w * h - 1 - x].tileType == .empty) {
             var tileType: TileType = undefined;
             if (bombCount % 3 == 0) {
