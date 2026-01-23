@@ -137,7 +137,7 @@ void main() {
   
   uv = (quad[gl_VertexID] + 1.0) / 2.0;
   gl_Position = vec4(
-    (quad[gl_VertexID] - vec2(6.0, 10.0)) * sv
+    (quad[gl_VertexID] * vec2(1.0, 2.0) - vec2(6.0, 9.0)) * sv
     + vec2(gx, gy) * sv * 2.0
     + vec2(px, py) * sv * 0.125,
     0.0, 1.0
@@ -159,11 +159,27 @@ flat in uint flipped;
 out vec4 outColor;
 
 void main() {
+  vec2 assetCoord = uv;
+  assetCoord.y = 1.0 - assetCoord.y;
   if (flipped == 1u) {
-    outColor = vec4(1.0 - uv.x, uv.y, 0.0, 0.5);
-  } else {
-    outColor = vec4(uv.x, uv.y, 0.0, 0.5);
+    assetCoord.x = 1.0 - assetCoord.x;
   }
+  assetCoord.y *= 2.0;
+  assetCoord += vec2(frameX, frameY);
+  assetCoord /= vec2(6.0, 5.0);
+  
+  float asset = texture(uAssets, assetCoord).r;
+  if (asset == 0.0) {
+    outColor = vec4(0.0, 0.0, 0.0, 0.0);
+  } else {
+    outColor = vec4(asset, asset, asset, 1.0);
+  }
+  
+  //if (flipped == 1u) {
+  //  outColor = vec4(1.0 - uv.x, uv.y, 0.0, 0.5);
+  //} else {
+  //  outColor = vec4(uv.x, uv.y, 0.0, 0.5);
+  //}
 }
 </script>
 
