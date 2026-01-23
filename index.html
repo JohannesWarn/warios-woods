@@ -178,7 +178,16 @@ void main() {
   
   const { instance } = await WebAssembly.instantiateStreaming(
     fetch("zig-out/bin/app.wasm?cache-break="+Date()),
-    {}
+    {
+      env: {
+        js_log: (ptr, len) => {
+          if (!memory) return;
+
+          const bytes = new Uint8Array(memory.buffer, ptr, len);
+          console.log(new TextDecoder("utf-8").decode(bytes));
+        },
+      },
+    }
   );
   
   out.textContent = "WASD + JK | arrows + ZX";

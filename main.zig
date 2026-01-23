@@ -1,5 +1,13 @@
 const std = @import("std");
 
+extern "env" fn js_log(ptr: [*]const u8, len: usize) void;
+
+pub fn log(comptime fmt: []const u8, args: anytype) void {
+    var buf: [256]u8 = undefined;
+    const msg = std.fmt.bufPrint(&buf, fmt, args) catch return;
+    js_log(msg.ptr, msg.len);
+}
+
 // Constants
 
 const w = 7;
@@ -126,6 +134,8 @@ pub export fn player_input_ptr() *PlayerInput {
 // Functions
 
 pub export fn game_init() void {
+    log("hello from game init", .{});
+
     var i: usize = 0;
     while (i < 7 * 8) : (i += 1) {
         var tileType: TileType = undefined;
