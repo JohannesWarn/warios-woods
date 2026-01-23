@@ -786,7 +786,7 @@ pub export fn tick() void {
                 tiles[i] = Tile{
                     .color = newColor,
                     .tileType = .diamond,
-                    .count = 0,
+                    .count = 20,
                 };
             } else {
                 tiles[i] = empty_tile;
