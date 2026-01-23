@@ -105,6 +105,13 @@ const player: *Sprite = &sprites[0];
 var tickCount: u32 = 0;
 var bombCount: u32 = 0;
 
+var prng = std.Random.DefaultPrng.init(12345);
+const rng = prng.random();
+
+fn random(t: type, max: t) t {
+    return rng.intRangeAtMost(t, 0, max);
+}
+
 // Exports
 
 pub export fn tiles_ptr() [*]Tile {
@@ -139,10 +146,14 @@ pub export fn game_init() void {
     var i: usize = 0;
     while (i < 7 * 8) : (i += 1) {
         var tileType: TileType = undefined;
-        tileType = .monster;
+        if (random(u8, 5) == 0) {
+            tileType = .diamond;
+        } else {
+            tileType = .monster;
+        }
 
         tiles[i] = Tile{
-            .color = @truncate((i + (i % 3) + (3 * i % 5) + (1 * i % 9) + (10 * i % 14)) % 8),
+            .color = random(u3, 7),
             .tileType = tileType,
             .count = 0,
         };
@@ -807,19 +818,19 @@ fn addNewBombs() bool {
             return false;
         }
 
-        const x: usize = @truncate((bombCount + bombCount % 3 + bombCount % 4) % w);
-        if (tiles[w * h - 1 - x].tileType == .empty) {
+        const x: usize = random(usize, w - 1);
+        if (tiles[w * (h - 1) + x].tileType == .empty) {
             var tileType: TileType = undefined;
-            if (bombCount % 5 == 0) {
+            if (random(u8, 1) == 0) {
                 tileType = .monster;
             } else {
                 tileType = .bomb;
             }
 
-            const colorIndex: usize = @truncate((bombCount + (2 * bombCount % 5) + (14 * bombCount % 203)) % colorsRemainingCount);
+            const colorIndex: usize = random(usize, colorsRemainingCount);
             const newColor: u3 = @truncate(colorsRemaining[colorIndex]);
 
-            tiles[w * h - 1 - x] = Tile{
+            tiles[w * (h - 1) + x] = Tile{
                 .color = newColor,
                 .tileType = tileType,
                 .count = fallDuration,
