@@ -217,7 +217,7 @@ void main() {
   const tiles = new Uint16Array(memory.buffer, tiles_ptr(), tiles_len());
   const sprites = new Uint32Array(memory.buffer, sprites_ptr(), sprites_len());
   
-  game_init();
+  game_init(Date.now());
   
   // ---- Player input ----
   

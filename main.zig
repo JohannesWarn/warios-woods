@@ -105,8 +105,7 @@ const player: *Sprite = &sprites[0];
 var tickCount: u32 = 0;
 var bombCount: u32 = 0;
 
-var prng = std.Random.DefaultPrng.init(12345);
-const rng = prng.random();
+var rng: std.Random = undefined;
 
 fn random(t: type, max: t) t {
     return rng.intRangeAtMost(t, 0, max);
@@ -140,7 +139,9 @@ pub export fn player_input_ptr() *PlayerInput {
 
 // Functions
 
-pub export fn game_init() void {
+pub export fn game_init(randomSeed: usize) void {
+    var prng = std.Random.DefaultPrng.init(randomSeed);
+    rng = prng.random();
     log("hello from game init", .{});
 
     var i: usize = 0;
