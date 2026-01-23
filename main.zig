@@ -700,7 +700,9 @@ pub export fn tick() void {
     var color: u3 = 0;
     var count: u4 = 0;
     var hasSeenBomb = false;
+    var hasSeenDiamond = false;
     var conditionsSatisfied = false;
+    var removeAll = [_]bool{false} ** 8;
     while (i < paths.len) : (i += 1) {
         const j = paths[i];
 
@@ -719,6 +721,7 @@ pub export fn tick() void {
         if (count == 0 or tile.color != color) {
             conditionsSatisfied = false;
             hasSeenBomb = tile.tileType == .bomb;
+            hasSeenDiamond = tile.tileType == .diamond;
             color = tile.color;
             count = 1;
             continue;
@@ -730,9 +733,17 @@ pub export fn tick() void {
             hasSeenBomb = tile.tileType == .bomb;
         }
 
+        if (!hasSeenDiamond) {
+            hasSeenDiamond = tile.tileType == .diamond;
+        }
+
+        if (count >= 3 and hasSeenDiamond) {
+            removeAll[tile.color] = true;
+        }
+
         if (conditionsSatisfied) {
             tiles[j].willExplode = true;
-        } else if (count >= 3 and hasSeenBomb) {
+        } else if (count >= 3 and (hasSeenBomb or hasSeenDiamond)) {
             conditionsSatisfied = true;
             tiles[j].willExplode = true;
 
@@ -749,15 +760,19 @@ pub export fn tick() void {
     while (i < w * h) : (i += 1) {
         var tile = tiles[i];
 
-        if (tile.willExplode) {
+        if (tile.tileType == .explosion and tile.count == 0) {
+            tiles[i] = empty_tile;
+        }
+
+        if (!tile.tileType.isSolid()) {
+            continue;
+        }
+
+        if (tile.willExplode or (tile.tileType == .monster and removeAll[tile.color])) {
             tile.tileType = .explosion;
             tile.count = explosionDuration;
             tile.willExplode = false;
             tiles[i] = tile;
-        }
-
-        if (tile.tileType == .explosion and tile.count == 0) {
-            tiles[i] = empty_tile;
         }
     }
 

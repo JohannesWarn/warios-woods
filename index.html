@@ -81,6 +81,9 @@ void main() {
   } else if (tileType == 2u) {
     ty = 3u;
     tx = 0u;
+  } else if (tileType == 3u) {
+    ty = 4u;
+    tx = 0u;
   } else if (tileType == 4u) {
     ty = 3u;
     tx = 1u;
@@ -174,12 +177,6 @@ void main() {
   } else {
     outColor = vec4(asset, asset, asset, 1.0);
   }
-  
-  //if (flipped == 1u) {
-  //  outColor = vec4(1.0 - uv.x, uv.y, 0.0, 0.5);
-  //} else {
-  //  outColor = vec4(uv.x, uv.y, 0.0, 0.5);
-  //}
 }
 </script>
 
