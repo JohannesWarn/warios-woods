@@ -61,8 +61,9 @@ const Tile = packed struct(u16) {
     tileType: TileType,
     count: u6 = 0,
     willExplode: bool = false,
+    willBecomeDiamond: bool = false,
 
-    _pad: u3 = 0,
+    _pad: u2 = 0,
 };
 
 const empty_tile = Tile{
@@ -99,6 +100,9 @@ var playerCooldown: u8 = 0;
 var tiles: [w * h]Tile = [_]Tile{empty_tile} ** (w * h);
 var sprites: [30]Sprite = undefined;
 var spritesCount: u8 = 0;
+
+var colorsRemaining = [_]u8{undefined} ** 8;
+var colorsRemainingCount: u8 = 0;
 
 const player: *Sprite = &sprites[0];
 
@@ -147,11 +151,7 @@ pub export fn game_init(randomSeed: usize) void {
     var i: usize = 0;
     while (i < 7 * 8) : (i += 1) {
         var tileType: TileType = undefined;
-        if (random(u8, 5) == 0) {
-            tileType = .diamond;
-        } else {
-            tileType = .monster;
-        }
+        tileType = .monster;
 
         tiles[i] = Tile{
             .color = random(u3, 7),
@@ -177,6 +177,8 @@ pub export fn game_init(randomSeed: usize) void {
     const gy: usize = player.gy;
     const playerI: usize = gx + gy * w;
     tiles[playerI] = player_tile;
+
+    updateColorsRemaining();
 }
 
 fn startFall() bool {
@@ -710,7 +712,7 @@ pub export fn tick() void {
     // find explosions
     i = 0;
     var color: u3 = 0;
-    var count: u4 = 0;
+    var count: u8 = 0;
     var hasSeenBomb = false;
     var hasSeenDiamond = false;
     var conditionsSatisfied = false;
@@ -719,6 +721,10 @@ pub export fn tick() void {
         const j = paths[i];
 
         if (j == pathBreak) {
+            if (conditionsSatisfied) {
+                markExplosion(i - 1, count);
+            }
+
             count = 0;
             continue;
         }
@@ -726,11 +732,19 @@ pub export fn tick() void {
         const tile = tiles[j];
 
         if (!tile.tileType.isSolid() or tile.count != 0) {
+            if (conditionsSatisfied) {
+                markExplosion(i - 1, count);
+            }
+
             count = 0;
             continue;
         }
 
         if (count == 0 or tile.color != color) {
+            if (conditionsSatisfied) {
+                markExplosion(i - 1, count);
+            }
+
             conditionsSatisfied = false;
             hasSeenBomb = tile.tileType == .bomb;
             hasSeenDiamond = tile.tileType == .diamond;
@@ -753,27 +767,30 @@ pub export fn tick() void {
             removeAll[tile.color] = true;
         }
 
-        if (conditionsSatisfied) {
-            tiles[j].willExplode = true;
-        } else if (count >= 3 and (hasSeenBomb or hasSeenDiamond)) {
-            conditionsSatisfied = true;
-            tiles[j].willExplode = true;
-
-            var k: u8 = 1;
-            while (k < count) {
-                tiles[paths[i - k]].willExplode = true;
-                k += 1;
-            }
+        if (!conditionsSatisfied) {
+            conditionsSatisfied = count >= 3 and (hasSeenBomb or hasSeenDiamond);
         }
     }
 
     // explode bombs and remove finished explosions
     i = 0;
+    var didExplode = false;
     while (i < w * h) : (i += 1) {
         var tile = tiles[i];
 
         if (tile.tileType == .explosion and tile.count == 0) {
-            tiles[i] = empty_tile;
+            if (tile.willBecomeDiamond) {
+                const colorIndex: usize = random(usize, colorsRemainingCount - 1);
+                const newColor: u3 = @truncate(colorsRemaining[colorIndex]);
+
+                tiles[i] = Tile{
+                    .color = newColor,
+                    .tileType = .diamond,
+                    .count = 0,
+                };
+            } else {
+                tiles[i] = empty_tile;
+            }
         }
 
         if (!tile.tileType.isSolid()) {
@@ -781,6 +798,8 @@ pub export fn tick() void {
         }
 
         if (tile.willExplode or (tile.tileType == .monster and removeAll[tile.color])) {
+            didExplode = true;
+
             tile.tileType = .explosion;
             tile.count = explosionDuration;
             tile.willExplode = false;
@@ -788,31 +807,51 @@ pub export fn tick() void {
         }
     }
 
+    if (didExplode) {
+        updateColorsRemaining();
+    }
+
     // add new bombs
     _ = addNewBombs();
+}
+
+fn markExplosion(lastIndex: usize, count: u8) void {
+    if (count >= 5) {
+        const diamondPosition = random(u8, count - 1);
+        tiles[paths[lastIndex - diamondPosition]].willBecomeDiamond = true;
+    }
+
+    var k: u8 = 0;
+    while (k < count) : (k += 1) {
+        tiles[paths[lastIndex - k]].willExplode = true;
+    }
+}
+
+fn updateColorsRemaining() void {
+    var colorStillHere = [_]bool{false} ** 8;
+    var i: usize = 0;
+    while (i < w * h) : (i += 1) {
+        var tile = tiles[i];
+        if (tile.tileType.isSolid() and !tile.willExplode) {
+            colorStillHere[tile.color] = true;
+        }
+    }
+
+    colorsRemainingCount = 0;
+    for (0..8) |k| {
+        if (colorStillHere[k]) {
+            colorsRemaining[colorsRemainingCount] = @truncate(k);
+            colorsRemainingCount += 1;
+        }
+    }
+
+    log("{}", .{colorsRemainingCount});
 }
 
 fn addNewBombs() bool {
     if ((tickCount + 190) % 200 == 0) {
         defer {
             bombCount +%= 1;
-        }
-
-        var colorStillHere = [_]bool{false} ** 8;
-        var i: usize = 0;
-        while (i < w * h) : (i += 1) {
-            var tile = tiles[i];
-            if (tile.tileType.isSolid()) {
-                colorStillHere[tile.color] = true;
-            }
-        }
-        var colorsRemaining = [_]u8{undefined} ** 8;
-        var colorsRemainingCount: u8 = 0;
-        for (0..8) |k| {
-            if (colorStillHere[k]) {
-                colorsRemaining[colorsRemainingCount] = @truncate(k);
-                colorsRemainingCount += 1;
-            }
         }
 
         if (colorsRemainingCount == 0) {
@@ -822,7 +861,7 @@ fn addNewBombs() bool {
         const x: usize = random(usize, w - 1);
         if (tiles[w * (h - 1) + x].tileType == .empty) {
             var tileType: TileType = undefined;
-            if (random(u8, 1) == 0) {
+            if (random(u8, 5) == 0) {
                 tileType = .monster;
             } else {
                 tileType = .bomb;
