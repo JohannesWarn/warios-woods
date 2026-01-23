@@ -652,7 +652,7 @@ fn movePlayer() void {
 }
 
 pub export fn tick() void {
-    tickCount += 1;
+    tickCount +%= 1;
 
     movePlayer();
 
@@ -768,7 +768,7 @@ pub export fn tick() void {
 fn addNewBombs() bool {
     if ((tickCount + 190) % 200 == 0) {
         defer {
-            bombCount += 1;
+            bombCount +%= 1;
         }
 
         var colorStillHere = [_]bool{false} ** 8;
