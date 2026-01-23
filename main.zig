@@ -801,7 +801,7 @@ fn addNewBombs() bool {
                 tileType = .bomb;
             }
 
-            const colorIndex: usize = @truncate(((bombCount % 5) + bombCount) % colorsRemainingCount);
+            const colorIndex: usize = @truncate((bombCount + (2 * bombCount % 5) + (14 * bombCount % 203)) % colorsRemainingCount);
             const newColor: u3 = @truncate(colorsRemaining[colorIndex]);
 
             tiles[w * h - 1 - x] = Tile{
