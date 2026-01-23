@@ -142,7 +142,7 @@ pub export fn game_init() void {
         tileType = .monster;
 
         tiles[i] = Tile{
-            .color = @truncate((i + (i % 3) + (3 * i % 5) + (1 * i % 9)) % 8),
+            .color = @truncate((i + (i % 3) + (3 * i % 5) + (1 * i % 9) + (10 * i % 14)) % 8),
             .tileType = tileType,
             .count = 0,
         };
@@ -762,12 +762,37 @@ pub export fn tick() void {
     }
 
     // add new bombs
+    _ = addNewBombs();
+}
+
+fn addNewBombs() bool {
     if ((tickCount + 190) % 200 == 0) {
         defer {
             bombCount += 1;
         }
 
-        const x: usize = @truncate((bombCount + bombCount % 3 + bombCount % 4) % 8);
+        var colorStillHere = [_]bool{false} ** 8;
+        var i: usize = 0;
+        while (i < w * h) : (i += 1) {
+            var tile = tiles[i];
+            if (tile.tileType.isSolid()) {
+                colorStillHere[tile.color] = true;
+            }
+        }
+        var colorsRemaining = [_]u8{undefined} ** 8;
+        var colorsRemainingCount: u8 = 0;
+        for (0..8) |k| {
+            if (colorStillHere[k]) {
+                colorsRemaining[colorsRemainingCount] = @truncate(k);
+                colorsRemainingCount += 1;
+            }
+        }
+
+        if (colorsRemainingCount == 0) {
+            return false;
+        }
+
+        const x: usize = @truncate((bombCount + bombCount % 3 + bombCount % 4) % w);
         if (tiles[w * h - 1 - x].tileType == .empty) {
             var tileType: TileType = undefined;
             if (bombCount % 5 == 0) {
@@ -776,13 +801,20 @@ pub export fn tick() void {
                 tileType = .bomb;
             }
 
+            const colorIndex: usize = @truncate(((bombCount % 5) + bombCount) % colorsRemainingCount);
+            const newColor: u3 = @truncate(colorsRemaining[colorIndex]);
+
             tiles[w * h - 1 - x] = Tile{
-                .color = @truncate(((bombCount % 5) + bombCount) % 8),
+                .color = newColor,
                 .tileType = tileType,
                 .count = fallDuration,
             };
         }
+
+        return true;
     }
+
+    return false;
 }
 
 // Path calculation
