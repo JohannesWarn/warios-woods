@@ -779,7 +779,7 @@ pub export fn tick() void {
         var tile = tiles[i];
 
         if (tile.tileType == .explosion and tile.count == 0) {
-            if (tile.willBecomeDiamond) {
+            if (tile.willBecomeDiamond and colorsRemainingCount != 0) {
                 const colorIndex: usize = random(usize, colorsRemainingCount - 1);
                 const newColor: u3 = @truncate(colorsRemaining[colorIndex]);
 
